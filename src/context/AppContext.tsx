@@ -1,14 +1,18 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { NavigationTab, Workspace, AppNotification } from '../types/navigation';
-import { mockWorkspaces, mockNotifications, mockDashboardMetrics } from '../data/mockData';
+import { mockNotifications, mockDashboardMetrics } from '../data/mockData';
 import type { DashboardMetrics } from '../types/dashboard';
+import { dbService } from '../services/db';
+import type { WorkspaceRecord } from '../services/db';
 
 interface AppContextType {
   activeTab: NavigationTab;
   setActiveTab: (tab: NavigationTab) => void;
   workspaces: Workspace[];
+  setWorkspaces: React.Dispatch<React.SetStateAction<Workspace[]>>;
   currentWorkspace: Workspace;
   setCurrentWorkspace: (ws: Workspace) => void;
+  loadWorkspaces: () => Promise<void>;
   isSidebarCollapsed: boolean;
   setIsSidebarCollapsed: (collapsed: boolean | ((prev: boolean) => boolean)) => void;
   isSearchOpen: boolean;
@@ -34,16 +38,74 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+const formatWorkspace = (record: WorkspaceRecord): Workspace => ({
+  id: record.id,
+  name: record.name,
+  plan: record.plan,
+  avatarInitials: record.name.substring(0, 2).toUpperCase(),
+  activeAutomations: record.plan === 'Enterprise' ? 18 : record.plan === 'Growth' ? 12 : 5,
+});
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeTab, setActiveTabState] = useState<NavigationTab>('overview');
-  const [workspaces] = useState<Workspace[]>(mockWorkspaces);
-  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace>(mockWorkspaces[0]);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([
+    {
+      id: 'ws-1',
+      name: 'Nexus Corp Global',
+      plan: 'Enterprise',
+      avatarInitials: 'NE',
+      activeAutomations: 18,
+    },
+  ]);
+  const [currentWorkspace, setCurrentWorkspaceState] = useState<Workspace>({
+    id: 'ws-1',
+    name: 'Nexus Corp Global',
+    plan: 'Enterprise',
+    avatarInitials: 'NE',
+    activeAutomations: 18,
+  });
+
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState<boolean>(false);
   const [notifications, setNotifications] = useState<AppNotification[]>(mockNotifications);
   const [isDemoMode, setIsDemoMode] = useState<boolean>(true);
   const [metrics] = useState<DashboardMetrics>(mockDashboardMetrics);
+
+  // Sync and persist current workspace
+  const setCurrentWorkspace = useCallback((ws: Workspace) => {
+    setCurrentWorkspaceState(ws);
+    try {
+      localStorage.setItem('nexus_current_workspace_id', ws.id);
+    } catch {}
+  }, []);
+
+  // Load workspaces from dbService
+  const loadWorkspaces = useCallback(async () => {
+    try {
+      const records = await dbService.getWorkspaces();
+      if (records && records.length > 0) {
+        const formatted = records.map(formatWorkspace);
+        setWorkspaces(formatted);
+
+        // Check if previously selected workspace exists
+        const savedId = typeof localStorage !== 'undefined' ? localStorage.getItem('nexus_current_workspace_id') : null;
+        const matched = formatted.find((w) => w.id === savedId);
+
+        if (matched) {
+          setCurrentWorkspaceState(matched);
+        } else if (!formatted.some((w) => w.id === currentWorkspace.id)) {
+          setCurrentWorkspaceState(formatted[0]);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to hydrate workspaces from dbService:', err);
+    }
+  }, [currentWorkspace.id]);
+
+  useEffect(() => {
+    loadWorkspaces();
+  }, [loadWorkspaces]);
 
   // Quick modals
   const [isQuickConnectModalOpen, setIsQuickConnectModalOpen] = useState(false);
@@ -118,8 +180,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activeTab,
         setActiveTab,
         workspaces,
+        setWorkspaces,
         currentWorkspace,
         setCurrentWorkspace,
+        loadWorkspaces,
         isSidebarCollapsed,
         setIsSidebarCollapsed,
         isSearchOpen,

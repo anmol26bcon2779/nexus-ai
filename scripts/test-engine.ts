@@ -160,11 +160,37 @@ async function runTests() {
   try {
     const workspaces = await dbService.getWorkspaces();
     assert(workspaces.length >= 3, 'Workspaces: Loads default business workspaces');
+
+    // Test creating a valid workspace
     const createdWs = await dbService.createWorkspace({
       name: 'Automated Test Lab',
       description: 'CI/CD verification workspace',
+      plan: 'Growth',
     });
     assert(createdWs.name === 'Automated Test Lab', 'Workspaces: Creates and persists new workspace');
+    assert(createdWs.slug.includes('automated-test-lab'), 'Workspaces: Generates hyphenated slug for new workspace');
+
+    // Test validation: rejects empty or short name
+    let rejected = false;
+    try {
+      await dbService.createWorkspace({ name: ' ' });
+    } catch {
+      rejected = true;
+    }
+    assert(rejected, 'Workspaces: Rejects invalid or empty workspace name');
+
+    // Test updating workspace
+    const updated = await dbService.updateWorkspace(createdWs.id, {
+      name: 'Updated Test Lab HQ',
+      website_url: 'https://testlab.internal',
+    });
+    assert(updated?.name === 'Updated Test Lab HQ', 'Workspaces: Updates workspace name and website');
+
+    // Test deleting workspace
+    const deleted = await dbService.deleteWorkspace(createdWs.id);
+    assert(deleted === true, 'Workspaces: Deletes workspace');
+    const afterDelete = await dbService.getWorkspaces();
+    assert(!afterDelete.some((w) => w.id === createdWs.id), 'Workspaces: Deleted workspace is removed from active list');
   } catch (err) {
     assert(false, `Workspace test threw error: ${err}`);
   }

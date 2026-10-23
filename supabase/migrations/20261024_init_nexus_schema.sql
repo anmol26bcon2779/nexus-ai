@@ -280,9 +280,9 @@ CREATE POLICY "Users can update their own profile"
   USING (auth.uid() = id);
 
 -- 2. Workspaces Policies
-CREATE POLICY "Users can view workspaces they belong to"
+CREATE POLICY "Users can view workspaces they belong to or own"
   ON public.workspaces FOR SELECT
-  USING (public.is_workspace_member(id));
+  USING (owner_id = auth.uid() OR public.is_workspace_member(id));
 
 CREATE POLICY "Authenticated users can create workspaces"
   ON public.workspaces FOR INSERT
@@ -300,6 +300,16 @@ CREATE POLICY "Owners can delete their workspaces"
 CREATE POLICY "Members can view other members of their workspace"
   ON public.workspace_members FOR SELECT
   USING (public.is_workspace_member(workspace_id));
+
+CREATE POLICY "Users can insert membership for workspaces they own"
+  ON public.workspace_members FOR INSERT
+  WITH CHECK (
+    auth.uid() = user_id
+    OR EXISTS (
+      SELECT 1 FROM public.workspaces
+      WHERE id = workspace_id AND owner_id = auth.uid()
+    )
+  );
 
 CREATE POLICY "Admins or owners can manage workspace members"
   ON public.workspace_members FOR ALL

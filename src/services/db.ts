@@ -350,6 +350,8 @@ export const dbService = {
           .order('created_at', { ascending: true });
 
         if (data && !error && data.length > 0) {
+          // Sync with local cache for offline/instant hydration
+          setStorage('nexus_workspaces', data);
           return data;
         }
       } catch (err) {
@@ -368,45 +370,73 @@ export const dbService = {
     plan?: 'Starter' | 'Growth' | 'Enterprise';
     userId?: string;
   }): Promise<WorkspaceRecord> {
-    const slug = params.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const cleanName = params.name.trim();
+    if (!cleanName || cleanName.length < 2) {
+      throw new Error('Workspace name must be at least 2 characters long.');
+    }
+
+    const baseSlug = cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const slug = `${baseSlug}-${Math.floor(1000 + Math.random() * 9000)}`;
+
     const newWs: WorkspaceRecord = {
       id: `ws-${Date.now()}`,
-      name: params.name,
+      name: cleanName,
       slug,
-      website_url: params.website_url || '',
-      description: params.description || 'Business operations workspace',
+      website_url: params.website_url?.trim() || '',
+      description: params.description?.trim() || 'Business operations workspace',
       plan: params.plan || 'Growth',
       created_at: new Date().toISOString(),
     };
 
-    if (isSupabaseConfigured() && params.userId) {
+    // If Supabase is configured, resolve user and persist to PostgreSQL
+    if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await supabase
-          .from('workspaces')
-          .insert({
-            owner_id: params.userId,
-            name: params.name,
-            slug,
-            website_url: params.website_url,
-            description: params.description,
-            plan: params.plan || 'Growth',
-          })
-          .select()
-          .single();
+        let activeUserId = params.userId;
+        if (!activeUserId) {
+          const { data: { user } } = await supabase.auth.getUser();
+          activeUserId = user?.id;
+        }
 
-        if (data && !error) {
-          await supabase.from('workspace_members').insert({
-            workspace_id: data.id,
-            user_id: params.userId,
-            role: 'owner',
-          });
-          return data;
+        if (activeUserId) {
+          const { data, error } = await supabase
+            .from('workspaces')
+            .insert({
+              owner_id: activeUserId,
+              name: cleanName,
+              slug,
+              website_url: newWs.website_url,
+              description: newWs.description,
+              plan: newWs.plan,
+            })
+            .select()
+            .single();
+
+          if (data && !error) {
+            // Add owner membership record
+            try {
+              await supabase.from('workspace_members').insert({
+                workspace_id: data.id,
+                user_id: activeUserId,
+                role: 'owner',
+              });
+            } catch (memberErr) {
+              console.warn('workspace_members insert warning:', memberErr);
+            }
+
+            const current = getStorage<WorkspaceRecord[]>('nexus_workspaces', []);
+            const updated = [...current.filter((w) => w.id !== data.id), data];
+            setStorage('nexus_workspaces', updated);
+            return data;
+          } else if (error) {
+            console.warn('Supabase createWorkspace error, using local persistence:', error);
+          }
         }
       } catch (err) {
-        console.warn('Supabase createWorkspace fallback:', err);
+        console.warn('Supabase createWorkspace exception, using local persistence:', err);
       }
     }
 
+    // Local / Demo persistence fallback
     const current = await this.getWorkspaces();
     const updated = [...current, newWs];
     setStorage('nexus_workspaces', updated);
@@ -422,7 +452,13 @@ export const dbService = {
           .eq('id', id)
           .select()
           .single();
-        if (data && !error) return data;
+
+        if (data && !error) {
+          const current = getStorage<WorkspaceRecord[]>('nexus_workspaces', DEFAULT_WORKSPACES);
+          const cached = current.map((w) => (w.id === id ? { ...w, ...data } : w));
+          setStorage('nexus_workspaces', cached);
+          return data;
+        }
       } catch (err) {
         console.warn('Supabase updateWorkspace fallback:', err);
       }
@@ -438,7 +474,12 @@ export const dbService = {
     if (isSupabaseConfigured()) {
       try {
         const { error } = await supabase.from('workspaces').delete().eq('id', id);
-        if (!error) return true;
+        if (!error) {
+          const current = getStorage<WorkspaceRecord[]>('nexus_workspaces', DEFAULT_WORKSPACES);
+          const updated = current.filter((w) => w.id !== id);
+          setStorage('nexus_workspaces', updated);
+          return true;
+        }
       } catch (err) {
         console.warn('Supabase deleteWorkspace fallback:', err);
       }

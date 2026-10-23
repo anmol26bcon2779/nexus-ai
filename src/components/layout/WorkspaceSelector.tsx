@@ -7,32 +7,25 @@ import { dbService } from '../../services/db';
 import type { WorkspaceRecord } from '../../services/db';
 
 export const WorkspaceSelector: React.FC = () => {
-  const { currentWorkspace, setCurrentWorkspace } = useApp();
-  const [workspaces, setWorkspaces] = useState<WorkspaceRecord[]>([]);
+  const { currentWorkspace, setCurrentWorkspace, workspaces, loadWorkspaces } = useApp();
+  const [dbWorkspaces, setDbWorkspaces] = useState<WorkspaceRecord[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [manageTarget, setManageTarget] = useState<WorkspaceRecord | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const loadWorkspaces = async () => {
-    const list = await dbService.getWorkspaces();
-    setWorkspaces(list);
-    // If current workspace not in list, pick first
-    if (!list.find((w) => w.id === currentWorkspace.id) && list.length > 0) {
-      const first = list[0];
-      setCurrentWorkspace({
-        id: first.id,
-        name: first.name,
-        plan: first.plan,
-        avatarInitials: first.name.substring(0, 2).toUpperCase(),
-        activeAutomations: 12,
-      });
+  const fetchRecords = async () => {
+    try {
+      const records = await dbService.getWorkspaces();
+      setDbWorkspaces(records);
+    } catch (err) {
+      console.warn('Failed to fetch full workspace records:', err);
     }
   };
 
   useEffect(() => {
-    loadWorkspaces();
-  }, []);
+    fetchRecords();
+  }, [workspaces]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -44,45 +37,51 @@ export const WorkspaceSelector: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleCreated = (ws: WorkspaceRecord) => {
-    setWorkspaces((prev) => [...prev, ws]);
+  const handleCreated = async (ws: WorkspaceRecord) => {
+    await fetchRecords();
+    await loadWorkspaces();
     setCurrentWorkspace({
       id: ws.id,
       name: ws.name,
       plan: ws.plan,
       avatarInitials: ws.name.substring(0, 2).toUpperCase(),
-      activeAutomations: 0,
+      activeAutomations: ws.plan === 'Enterprise' ? 18 : ws.plan === 'Growth' ? 12 : 5,
     });
     setIsOpen(false);
   };
 
-  const handleUpdated = (ws: WorkspaceRecord) => {
-    setWorkspaces((prev) => prev.map((w) => (w.id === ws.id ? ws : w)));
+  const handleUpdated = async (ws: WorkspaceRecord) => {
+    await fetchRecords();
+    await loadWorkspaces();
     if (currentWorkspace.id === ws.id) {
       setCurrentWorkspace({
         ...currentWorkspace,
         name: ws.name,
+        plan: ws.plan,
         avatarInitials: ws.name.substring(0, 2).toUpperCase(),
       });
     }
   };
 
-  const handleDeleted = (id: string) => {
-    setWorkspaces((prev) => prev.filter((w) => w.id !== id));
-    const remaining = workspaces.filter((w) => w.id !== id);
-    if (remaining.length > 0) {
-      const first = remaining[0];
-      setCurrentWorkspace({
-        id: first.id,
-        name: first.name,
-        plan: first.plan,
-        avatarInitials: first.name.substring(0, 2).toUpperCase(),
-        activeAutomations: 5,
-      });
+  const handleDeleted = async (deletedId: string) => {
+    await fetchRecords();
+    await loadWorkspaces();
+    if (currentWorkspace.id === deletedId) {
+      const remaining = dbWorkspaces.filter((w) => w.id !== deletedId);
+      if (remaining.length > 0) {
+        const next = remaining[0];
+        setCurrentWorkspace({
+          id: next.id,
+          name: next.name,
+          plan: next.plan,
+          avatarInitials: next.name.substring(0, 2).toUpperCase(),
+          activeAutomations: next.plan === 'Enterprise' ? 18 : 12,
+        });
+      }
     }
   };
 
-  const avatar = currentWorkspace.name.substring(0, 2).toUpperCase();
+  const avatar = currentWorkspace.name ? currentWorkspace.name.substring(0, 2).toUpperCase() : 'NX';
 
   return (
     <>
@@ -91,7 +90,7 @@ export const WorkspaceSelector: React.FC = () => {
           onClick={() => setIsOpen(!isOpen)}
           className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-[#151824] hover:bg-[#1C2030] border border-[#282F48] transition-all duration-150 text-left group"
         >
-          <div className="w-6 h-6 rounded-md bg-gradient-to-br from-purple-600 to-indigo-700 flex items-center justify-center text-white font-bold text-xs shadow-sm">
+          <div className="w-6 h-6 rounded-md bg-gradient-to-br from-purple-600 to-indigo-700 flex items-center justify-center text-white font-bold text-xs shadow-sm shrink-0">
             {avatar}
           </div>
           <div className="hidden sm:block">
@@ -109,11 +108,13 @@ export const WorkspaceSelector: React.FC = () => {
           <div className="absolute left-0 mt-2 w-72 rounded-xl bg-[#0F111A] border border-[#282F48] shadow-2xl shadow-purple-950/40 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
             <div className="px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-slate-400 flex items-center justify-between">
               <span>Your Workspaces</span>
-              <span className="text-[10px] text-purple-400">{workspaces.length} active</span>
+              <span className="text-[10px] text-purple-400 font-bold">{workspaces.length} active</span>
             </div>
             <div className="space-y-0.5 px-1.5 max-h-64 overflow-y-auto">
               {workspaces.map((ws) => {
                 const isSelected = ws.id === currentWorkspace.id;
+                const fullRecord = dbWorkspaces.find((w) => w.id === ws.id);
+
                 return (
                   <div
                     key={ws.id}
@@ -125,13 +126,7 @@ export const WorkspaceSelector: React.FC = () => {
                   >
                     <button
                       onClick={() => {
-                        setCurrentWorkspace({
-                          id: ws.id,
-                          name: ws.name,
-                          plan: ws.plan,
-                          avatarInitials: ws.name.substring(0, 2).toUpperCase(),
-                          activeAutomations: 12,
-                        });
+                        setCurrentWorkspace(ws);
                         setIsOpen(false);
                       }}
                       className="flex items-center gap-2.5 truncate flex-1 text-left"
@@ -141,10 +136,10 @@ export const WorkspaceSelector: React.FC = () => {
                       </div>
                       <div className="truncate">
                         <p className="font-medium truncate">{ws.name}</p>
-                        {ws.website_url ? (
+                        {fullRecord?.website_url ? (
                           <p className="text-[10px] text-slate-500 truncate flex items-center gap-1">
                             <Globe className="w-2.5 h-2.5" />
-                            <span>{ws.website_url.replace(/^https?:\/\//, '')}</span>
+                            <span>{fullRecord.website_url.replace(/^https?:\/\//, '')}</span>
                           </p>
                         ) : (
                           <p className="text-[10px] text-slate-500">{ws.plan} Plan</p>
@@ -156,7 +151,13 @@ export const WorkspaceSelector: React.FC = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setManageTarget(ws);
+                          const targetRecord: WorkspaceRecord = fullRecord || {
+                            id: ws.id,
+                            name: ws.name,
+                            slug: ws.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+                            plan: ws.plan,
+                          };
+                          setManageTarget(targetRecord);
                           setIsOpen(false);
                         }}
                         className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white"
@@ -177,7 +178,7 @@ export const WorkspaceSelector: React.FC = () => {
                   setIsCreateOpen(true);
                   setIsOpen(false);
                 }}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-slate-300 hover:text-purple-300 hover:bg-purple-500/10 transition-colors"
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-slate-300 hover:text-purple-300 hover:bg-purple-500/10 transition-colors font-medium"
               >
                 <Plus className="w-3.5 h-3.5 text-purple-400" />
                 <span>Create new business workspace</span>

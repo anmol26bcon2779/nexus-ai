@@ -2,15 +2,16 @@ import React, { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
-import { Building2, Globe, Sparkles } from 'lucide-react';
+import { Building2, Globe, Sparkles, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { dbService } from '../../services/db';
+import type { WorkspaceRecord } from '../../services/db';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
 
 interface CreateWorkspaceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onWorkspaceCreated: (ws: any) => void;
+  onWorkspaceCreated: (ws: WorkspaceRecord) => void;
 }
 
 export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
@@ -19,33 +20,59 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
   onWorkspaceCreated,
 }) => {
   const { user } = useAuth();
+  const { workspaces, setCurrentWorkspace, loadWorkspaces } = useApp();
   const [name, setName] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [description, setDescription] = useState('');
   const [plan, setPlan] = useState<'Starter' | 'Growth' | 'Enterprise'>('Growth');
   const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    const cleanName = name.trim();
+    if (!cleanName || cleanName.length < 2) {
+      setErrorMessage('Workspace name must be at least 2 characters long.');
+      return;
+    }
+
+    // Check for duplicate workspace name in active list
+    if (workspaces.some((w) => w.name.toLowerCase() === cleanName.toLowerCase())) {
+      setErrorMessage(`A workspace named "${cleanName}" already exists. Please choose a distinctive name.`);
+      return;
+    }
 
     setSubmitting(true);
     try {
       const created = await dbService.createWorkspace({
-        name,
-        website_url: websiteUrl,
-        description,
+        name: cleanName,
+        website_url: websiteUrl.trim(),
+        description: description.trim(),
         plan,
         userId: user?.id,
       });
 
+      setSuccessMessage(`Workspace "${created.name}" created successfully!`);
+
+      // Refresh workspaces in context and notify parent
+      await loadWorkspaces();
       onWorkspaceCreated(created);
-      setName('');
-      setWebsiteUrl('');
-      setDescription('');
-      onClose();
-    } catch (err) {
-      console.error(err);
+
+      // Reset form and close
+      setTimeout(() => {
+        setName('');
+        setWebsiteUrl('');
+        setDescription('');
+        setSuccessMessage(null);
+        onClose();
+      }, 1000);
+    } catch (err: any) {
+      console.error('Failed to create workspace:', err);
+      setErrorMessage(err.message || 'Failed to create workspace. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -65,11 +92,28 @@ export const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
       maxWidth="md"
     >
       <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+        {errorMessage && (
+          <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+            <span>{successMessage}</span>
+          </div>
+        )}
+
         <Input
           label="Workspace / Business Name"
           placeholder="e.g. Acme Logistics India"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            setName(e.target.value);
+            if (errorMessage) setErrorMessage(null);
+          }}
           required
         />
 

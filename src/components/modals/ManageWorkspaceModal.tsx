@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
-import { Settings2, Trash2, Globe, Save, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Settings2, Trash2, Globe, Save, AlertTriangle, ShieldCheck, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { dbService } from '../../services/db';
 import type { WorkspaceRecord } from '../../services/db';
+import { useApp } from '../../context/AppContext';
 
 interface ManageWorkspaceModalProps {
   isOpen: boolean;
@@ -21,37 +22,68 @@ export const ManageWorkspaceModal: React.FC<ManageWorkspaceModalProps> = ({
   onWorkspaceUpdated,
   onWorkspaceDeleted,
 }) => {
+  const { workspaces, loadWorkspaces } = useApp();
   const [name, setName] = useState(workspace.name);
   const [websiteUrl, setWebsiteUrl] = useState(workspace.website_url || '');
   const [description, setDescription] = useState(workspace.description || '');
   const [saving, setSaving] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const isOnlyWorkspace = workspaces.length <= 1;
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    const cleanName = name.trim();
+    if (!cleanName || cleanName.length < 2) {
+      setErrorMessage('Workspace name must be at least 2 characters long.');
+      return;
+    }
+
     setSaving(true);
     try {
       const updated = await dbService.updateWorkspace(workspace.id, {
-        name,
-        website_url: websiteUrl,
-        description,
+        name: cleanName,
+        website_url: websiteUrl.trim(),
+        description: description.trim(),
       });
+
       if (updated) {
+        setSuccessMessage('Workspace updated successfully!');
+        await loadWorkspaces();
         onWorkspaceUpdated(updated);
-        onClose();
+        setTimeout(() => onClose(), 800);
+      } else {
+        setErrorMessage('Failed to save changes.');
       }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'An error occurred while saving.');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async () => {
+    if (isOnlyWorkspace) {
+      setErrorMessage('Cannot delete the only remaining workspace. Create another workspace first.');
+      setShowConfirmDelete(false);
+      return;
+    }
+
     setDeleting(true);
+    setErrorMessage(null);
     try {
       await dbService.deleteWorkspace(workspace.id);
+      await loadWorkspaces();
       onWorkspaceDeleted(workspace.id);
       onClose();
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to delete workspace.');
     } finally {
       setDeleting(false);
     }
@@ -71,11 +103,28 @@ export const ManageWorkspaceModal: React.FC<ManageWorkspaceModalProps> = ({
       maxWidth="md"
     >
       <div className="space-y-4 text-xs">
+        {errorMessage && (
+          <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+            <span>{successMessage}</span>
+          </div>
+        )}
+
         <form onSubmit={handleSave} className="space-y-3.5">
           <Input
             label="Workspace Name"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              if (errorMessage) setErrorMessage(null);
+            }}
             required
           />
 
@@ -104,8 +153,16 @@ export const ManageWorkspaceModal: React.FC<ManageWorkspaceModalProps> = ({
               type="button"
               variant="danger"
               size="xs"
-              onClick={() => setShowConfirmDelete(true)}
+              onClick={() => {
+                if (isOnlyWorkspace) {
+                  setErrorMessage('Cannot delete the only remaining workspace. Please create another workspace first.');
+                } else {
+                  setShowConfirmDelete(true);
+                }
+              }}
               leftIcon={<Trash2 className="w-3.5 h-3.5" />}
+              disabled={isOnlyWorkspace}
+              title={isOnlyWorkspace ? 'At least one workspace must remain active' : 'Delete workspace'}
             >
               Delete Workspace
             </Button>
