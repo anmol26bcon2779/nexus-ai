@@ -1,0 +1,187 @@
+import { IntegrationProvider } from './types';
+
+export const initialIntegrations: IntegrationProvider[] = [
+  {
+    id: 'shopify',
+    name: 'Shopify Store',
+    category: 'ecommerce',
+    description: 'Sync online orders, line items, customers, and order fulfillment status via Admin API webhooks.',
+    status: 'demo_connected',
+    iconName: 'ShoppingBag',
+    isDemo: true,
+    requiredPermissions: ['read_orders', 'write_orders', 'read_products', 'read_customers'],
+    supportedTriggers: [
+      { id: 'orders/create', name: 'New Order Arrived', description: 'Fires when a customer completes checkout on Shopify', samplePayload: { orderId: 'NX-8941', value: 14500, customer: 'Priya Iyer' } },
+      { id: 'orders/paid', name: 'Order Payment Captured', description: 'Fires when payment is confirmed', samplePayload: { orderId: 'NX-8941', status: 'paid' } },
+    ],
+    supportedActions: [
+      { id: 'fulfill_order', name: 'Update Order Fulfillment', description: 'Sets tracking number and marks order fulfilled on Shopify', inputSchema: { orderId: 'string', trackingId: 'string', carrier: 'string' } },
+      { id: 'add_order_note', name: 'Add Order Note', description: 'Appends internal courier notes to order timeline', inputSchema: { orderId: 'string', note: 'string' } },
+    ],
+    configFields: [
+      { key: 'shopUrl', label: 'Shopify Store URL', type: 'url', placeholder: 'your-brand.myshopify.com', required: true },
+      { key: 'accessToken', label: 'Admin API Access Token', type: 'password', placeholder: 'shpat_...', required: true },
+    ],
+    setupInstructions: 'Create a custom app in Shopify Admin > Settings > Apps and Sales Channels. Grant read_orders and write_orders permissions.',
+    lastTestedAt: new Date(Date.now() - 3600 * 1000).toISOString(),
+  },
+  {
+    id: 'porter',
+    name: 'Porter Local Delivery',
+    category: 'logistics',
+    description: 'On-demand 2-wheelers and mini trucks for same-day express intra-city deliveries across Indian metros.',
+    status: 'demo_connected',
+    iconName: 'Truck',
+    isDemo: true,
+    requiredPermissions: ['orders:create', 'orders:read', 'tracking:webhook'],
+    supportedTriggers: [
+      { id: 'delivery/rider_assigned', name: 'Rider Assigned', description: 'Carrier assigns nearest delivery executive', samplePayload: { riderName: 'Ramesh Kumar', phone: '+91 98451 00291' } },
+      { id: 'delivery/status_changed', name: 'Delivery Status Updated', description: 'Rider picked up or delivered package', samplePayload: { status: 'picked_up' } },
+    ],
+    supportedActions: [
+      { id: 'book_rider', name: 'Book Local Delivery', description: 'Assigns 2-wheeler or mini truck for instant dispatch', inputSchema: { pickupPincode: 'string', deliveryPincode: 'string', packageWeight: 'number' } },
+      { id: 'track_order', name: 'Get Live Status', description: 'Polls rider location and estimated arrival', inputSchema: { bookingId: 'string' } },
+    ],
+    configFields: [
+      { key: 'apiKey', label: 'Porter Enterprise API Key', type: 'password', required: true },
+      { key: 'partnerId', label: 'Partner Merchant ID', type: 'text', required: true },
+    ],
+    setupInstructions: 'Obtain an API key from Porter Enterprise Portal. Webhook URL will receive rider dispatch and completion pings.',
+    lastTestedAt: new Date(Date.now() - 1800 * 1000).toISOString(),
+  },
+  {
+    id: 'shiprocket',
+    name: 'Shiprocket Pan-India',
+    category: 'logistics',
+    description: 'Multi-courier logistics aggregator supporting 28,000+ pin codes with Blue Dart, Delhivery, DTDC and Ecom Express.',
+    status: 'demo_connected',
+    iconName: 'Package',
+    isDemo: true,
+    requiredPermissions: ['shipments:create', 'tracking:read', 'awb:generate'],
+    supportedTriggers: [
+      { id: 'shipment/dispatched', name: 'Shipment Dispatched', description: 'Package scanned at carrier origin facility', samplePayload: { awb: 'DEMO-AWB-89211', carrier: 'Blue Dart' } },
+      { id: 'shipment/exception', name: 'Delivery Exception / RTO', description: 'Carrier reported wrong address or customer unavailable', samplePayload: { reason: 'Customer requested reschedule' } },
+    ],
+    supportedActions: [
+      { id: 'generate_awb', name: 'Book Shipment & Generate AWB', description: 'Assigns courier partner and downloads shipping label', inputSchema: { orderId: 'string', weightKg: 'number', dimensions: 'string' } },
+      { id: 'cancel_shipment', name: 'Cancel Pickup', description: 'Voids shipment before courier arrival', inputSchema: { awb: 'string' } },
+    ],
+    configFields: [
+      { key: 'email', label: 'Shiprocket Account Email', type: 'text', required: true },
+      { key: 'password', label: 'API Password / Token', type: 'password', required: true },
+    ],
+    setupInstructions: 'Navigate to Shiprocket API Settings to generate OAuth credentials. Demo credentials active by default.',
+    lastTestedAt: new Date(Date.now() - 5400 * 1000).toISOString(),
+  },
+  {
+    id: 'whatsapp',
+    name: 'WhatsApp Business Platform',
+    category: 'communication',
+    description: 'Send automated order confirmations, live delivery tracking links, and interactive lead follow-ups.',
+    status: 'demo_connected',
+    iconName: 'MessageSquare',
+    isDemo: true,
+    requiredPermissions: ['whatsapp_business_messaging', 'messages:write'],
+    supportedTriggers: [
+      { id: 'message/received', name: 'Inbound Customer Message', description: 'Fires when a customer messages the business WhatsApp number', samplePayload: { from: '+91 98765 43210', text: 'Where is my order?' } },
+    ],
+    supportedActions: [
+      { id: 'send_template', name: 'Send Template Message', description: 'Dispatches pre-approved order dispatch or tracking notification', inputSchema: { to: 'string', templateName: 'string', params: 'array' } },
+      { id: 'draft_reply', name: 'Prepare Reply Draft', description: 'Drafts tailored response for agent approval', inputSchema: { leadId: 'string', draftText: 'string' } },
+    ],
+    configFields: [
+      { key: 'phoneNumberId', label: 'WhatsApp Phone Number ID', type: 'text', required: true },
+      { key: 'metaToken', label: 'System User Permanent Access Token', type: 'password', required: true },
+    ],
+    setupInstructions: 'Connect your Meta WhatsApp Cloud API credentials. In Demo mode, messages are safely simulated in Execution Logs.',
+    lastTestedAt: new Date(Date.now() - 7200 * 1000).toISOString(),
+  },
+  {
+    id: 'slack',
+    name: 'Slack Alerts & Approvals',
+    category: 'communication',
+    description: 'Post executive digests, high-value order approval gates, and critical operational error alerts.',
+    status: 'demo_connected',
+    iconName: 'Bell',
+    isDemo: true,
+    requiredPermissions: ['chat:write', 'channels:read', 'incoming-webhook'],
+    supportedTriggers: [
+      { id: 'slack/button_clicked', name: 'Interactive Approval Clicked', description: 'Manager clicks Approve/Reject inside Slack channel', samplePayload: { action: 'approve', orderId: 'NX-8941' } },
+    ],
+    supportedActions: [
+      { id: 'post_alert', name: 'Post Operational Notification', description: 'Posts formatted rich message to specified channel', inputSchema: { channel: 'string', text: 'string' } },
+      { id: 'request_approval', name: 'Send Approval Block', description: 'Renders interactive Approve/Reject buttons in channel', inputSchema: { orderId: 'string', details: 'string' } },
+    ],
+    configFields: [
+      { key: 'webhookUrl', label: 'Incoming Webhook URL', type: 'url', required: true },
+      { key: 'botToken', label: 'Bot User OAuth Token', type: 'password', required: false },
+    ],
+    setupInstructions: 'Install Nexus Slack App to your workspace and choose the alerts channel (#operations or #dispatch).',
+    lastTestedAt: new Date(Date.now() - 900 * 1000).toISOString(),
+  },
+  {
+    id: 'sheets',
+    name: 'Google Sheets DB',
+    category: 'productivity',
+    description: 'Append live order rows, update courier tracking IDs, and check low-inventory stock thresholds.',
+    status: 'demo_connected',
+    iconName: 'FileSpreadsheet',
+    isDemo: true,
+    requiredPermissions: ['https://www.googleapis.com/auth/spreadsheets'],
+    supportedTriggers: [
+      { id: 'sheets/row_added', name: 'New Row Added', description: 'Fires when inventory or purchase row is inserted', samplePayload: { row: 142, sku: 'NX-CHAIR-BLK', stock: 3 } },
+    ],
+    supportedActions: [
+      { id: 'append_order', name: 'Append Order Record', description: 'Appends order details, customer contact & courier into spreadsheet', inputSchema: { spreadsheetId: 'string', values: 'array' } },
+      { id: 'check_inventory', name: 'Query Stock Level', description: 'Checks SKU quantity against threshold', inputSchema: { sku: 'string' } },
+    ],
+    configFields: [
+      { key: 'spreadsheetId', label: 'Spreadsheet ID', type: 'text', required: true },
+      { key: 'serviceAccountKey', label: 'Google Service Account JSON', type: 'password', required: true },
+    ],
+    setupInstructions: 'Share your Google Sheet with the Nexus Service Account email with Editor permissions.',
+    lastTestedAt: new Date(Date.now() - 4200 * 1000).toISOString(),
+  },
+  {
+    id: 'gmail',
+    name: 'Gmail & Workspace',
+    category: 'productivity',
+    description: 'Parse supplier invoices, send purchase orders, and route customer inquiries.',
+    status: 'demo_connected',
+    iconName: 'Mail',
+    isDemo: true,
+    requiredPermissions: ['https://www.googleapis.com/auth/gmail.send', 'https://www.googleapis.com/auth/gmail.readonly'],
+    supportedTriggers: [
+      { id: 'email/received', name: 'New Email Received', description: 'Fires when an email matches filter query (e.g. subject: PO)', samplePayload: { from: 'vendor@apex.com', subject: 'Reorder Confirmation' } },
+    ],
+    supportedActions: [
+      { id: 'send_email', name: 'Send Email Draft / Notice', description: 'Sends email to customer or supplier', inputSchema: { to: 'string', subject: 'string', body: 'string' } },
+    ],
+    configFields: [
+      { key: 'userEmail', label: 'Authorized Gmail Account', type: 'text', required: true },
+    ],
+    setupInstructions: 'Authorize Google OAuth2 to allow automated order email dispatch.',
+    lastTestedAt: new Date(Date.now() - 12000 * 1000).toISOString(),
+  },
+  {
+    id: 'instagram',
+    name: 'Instagram Direct',
+    category: 'marketing',
+    description: 'Capture inbound DM leads, score buyer intent with AI, and prepare automated WhatsApp outreach.',
+    status: 'demo_connected',
+    iconName: 'Instagram',
+    isDemo: true,
+    requiredPermissions: ['instagram_manage_messages', 'pages_messaging'],
+    supportedTriggers: [
+      { id: 'instagram/dm_received', name: 'New Direct Message', description: 'Fires when an Instagram user asks about price or catalog', samplePayload: { username: 'rohan_mehra', text: 'Hi, what is the price for the standing desk?' } },
+    ],
+    supportedActions: [
+      { id: 'send_dm', name: 'Send Direct Message', description: 'Replies with catalog link and delivery estimate', inputSchema: { recipientId: 'string', message: 'string' } },
+    ],
+    configFields: [
+      { key: 'instagramPageId', label: 'Instagram Business Account ID', type: 'text', required: true },
+    ],
+    setupInstructions: 'Link your Instagram Professional Account via Meta Business Manager.',
+    lastTestedAt: new Date(Date.now() - 15000 * 1000).toISOString(),
+  },
+];
