@@ -38,10 +38,12 @@ app.use('/api/logs', logsRouter);
 app.use('/api/assistant', assistantRouter);
 app.use('/api/settings', settingsRouter);
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`[NEXUS AI] Backend API Engine running at http://localhost:${PORT}`);
-  console.log(`[NEXUS AI] Safe Demo Sandbox active. Logistics & automation adapters ready.`);
-});
+// Start server (only in standalone Node/local dev mode, not inside Vercel serverless)
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`[NEXUS AI] Backend API Engine running at http://localhost:${PORT}`);
+    console.log(`[NEXUS AI] Safe Demo Sandbox active. Logistics & automation adapters ready.`);
+  });
+}
 
 export default app;

@@ -1,11 +1,13 @@
 import React from 'react';
 import { AppProvider, useApp } from './context/AppContext';
+import { AuthProvider } from './context/AuthContext';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopNav } from './components/layout/TopNav';
 import { GlobalSearchModal } from './components/layout/GlobalSearchModal';
 import { QuickOrderModal } from './components/modals/QuickOrderModal';
 import { QuickConnectModal } from './components/modals/QuickConnectModal';
 import { QuickAutomationModal } from './components/modals/QuickAutomationModal';
+import { AuthModal } from './components/auth/AuthModal';
 
 // Views
 import { OverviewView } from './views/OverviewView';
@@ -74,7 +76,7 @@ const MainLayout: React.FC = () => {
               <div className="flex items-center gap-3">
                 <span className="text-purple-400 font-mono text-[11px]">v1.0.0-hackathon</span>
                 <span>•</span>
-                <span className="text-slate-400">Demo Sandbox Active</span>
+                <span className="text-slate-400">Production Ready</span>
               </div>
             </footer>
           </div>
@@ -86,14 +88,17 @@ const MainLayout: React.FC = () => {
       <QuickOrderModal />
       <QuickConnectModal />
       <QuickAutomationModal />
+      <AuthModal />
     </div>
   );
 };
 
 export default function App() {
   return (
-    <AppProvider>
-      <MainLayout />
-    </AppProvider>
+    <AuthProvider>
+      <AppProvider>
+        <MainLayout />
+      </AppProvider>
+    </AuthProvider>
   );
 }
