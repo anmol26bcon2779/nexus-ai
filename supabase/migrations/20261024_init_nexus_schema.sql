@@ -271,6 +271,10 @@ CREATE POLICY "Users can view their own profile"
   ON public.profiles FOR SELECT
   USING (auth.uid() = id);
 
+CREATE POLICY "Users can insert their own profile"
+  ON public.profiles FOR INSERT
+  WITH CHECK (auth.uid() = id);
+
 CREATE POLICY "Users can update their own profile"
   ON public.profiles FOR UPDATE
   USING (auth.uid() = id);
@@ -392,28 +396,52 @@ CREATE POLICY "Users can view and manage their own notifications"
   USING (auth.uid() = user_id);
 
 -- ==============================================================================
--- AUTOMATIC SIGNUP TRIGGER: Create Profile & Default Workspace
+-- AUTOMATIC SIGNUP TRIGGER: Safe Profile & Default Workspace Generation
 -- ==============================================================================
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
   new_ws_id UUID;
   user_name TEXT;
+  safe_slug TEXT;
 BEGIN
+  -- Extract user full name or fallback to email prefix
   user_name := COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1));
+  IF user_name IS NULL OR TRIM(user_name) = '' THEN
+    user_name := 'Business User';
+  END IF;
 
-  -- 1. Insert Profile
-  INSERT INTO public.profiles (id, email, full_name, role)
-  VALUES (NEW.id, NEW.email, user_name, 'business_owner');
+  -- 1. Insert Profile safely (idempotent, won't crash on duplicate)
+  BEGIN
+    INSERT INTO public.profiles (id, email, full_name, role)
+    VALUES (NEW.id, NEW.email, user_name, 'business_owner')
+    ON CONFLICT (id) DO UPDATE
+      SET email = EXCLUDED.email,
+          full_name = COALESCE(public.profiles.full_name, EXCLUDED.full_name),
+          updated_at = NOW();
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'handle_new_user: Profile insert exception for %: %', NEW.id, SQLERRM;
+  END;
 
-  -- 2. Create Default Business Workspace
-  INSERT INTO public.workspaces (owner_id, name, slug, description, plan)
-  VALUES (NEW.id, user_name || ' Workspace', LOWER(REGEXP_REPLACE(user_name, '[^a-zA-Z0-9]+', '-', 'g')), 'Primary business operations workspace', 'Growth')
-  RETURNING id INTO new_ws_id;
+  -- 2. Create Default Business Workspace (isolated block: failure never aborts signup)
+  BEGIN
+    safe_slug := LOWER(REGEXP_REPLACE(user_name, '[^a-zA-Z0-9]+', '-', 'g'));
+    IF safe_slug IS NULL OR safe_slug = '' OR safe_slug = '-' THEN
+      safe_slug := 'workspace-' || SUBSTRING(NEW.id::TEXT, 1, 8);
+    ELSE
+      safe_slug := safe_slug || '-' || SUBSTRING(NEW.id::TEXT, 1, 4);
+    END IF;
 
-  -- 3. Add to Workspace Members as Owner
-  INSERT INTO public.workspace_members (workspace_id, user_id, role)
-  VALUES (new_ws_id, NEW.id, 'owner');
+    INSERT INTO public.workspaces (owner_id, name, slug, description, plan)
+    VALUES (NEW.id, user_name || ' Workspace', safe_slug, 'Primary business operations workspace', 'Growth')
+    RETURNING id INTO new_ws_id;
+
+    INSERT INTO public.workspace_members (workspace_id, user_id, role)
+    VALUES (new_ws_id, NEW.id, 'owner')
+    ON CONFLICT (workspace_id, user_id) DO NOTHING;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'handle_new_user: Workspace auto-creation skipped for user %: %', NEW.id, SQLERRM;
+  END;
 
   RETURN NEW;
 END;

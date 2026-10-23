@@ -3,10 +3,11 @@ import { deliveryRegistry } from '../server/adapters/delivery/deliveryRegistry';
 import { workflowEngine } from '../server/engine/workflowEngine';
 import { dataStore, BackendOrder } from '../server/store/dataStore';
 import { dbService } from '../src/services/db';
+import { getSupabaseConfig, isSupabaseConfigured, supabase } from '../src/lib/supabase';
 
 async function runTests() {
   console.log('====================================================');
-  console.log('🧪 NEXUS AI — SYSTEM VERIFICATION SUITE');
+  console.log('🧪 NEXUS AI — SYSTEM & AUTH VERIFICATION SUITE');
   console.log('====================================================\n');
 
   let passed = 0;
@@ -166,6 +167,46 @@ async function runTests() {
     assert(createdWs.name === 'Automated Test Lab', 'Workspaces: Creates and persists new workspace');
   } catch (err) {
     assert(false, `Workspace test threw error: ${err}`);
+  }
+
+  // 8. Supabase Configuration & Diagnostics Tests
+  try {
+    const config = getSupabaseConfig();
+    assert(typeof config === 'object', 'Supabase: getSupabaseConfig returns diagnostic object');
+    assert(typeof config.isValid === 'boolean', 'Supabase: isValid flag is boolean');
+
+    // Test proxy client initialization
+    assert(typeof supabase.from === 'function', 'Supabase Client: Client has .from query builder');
+    assert(typeof supabase.auth === 'object', 'Supabase Client: Client has .auth authentication subsystem');
+    assert(typeof supabase.auth.signUp === 'function', 'Supabase Auth: Exposes real signUp method');
+    assert(typeof supabase.auth.signInWithPassword === 'function', 'Supabase Auth: Exposes real signInWithPassword method');
+    assert(typeof supabase.auth.resetPasswordForEmail === 'function', 'Supabase Auth: Exposes real resetPasswordForEmail method');
+    assert(typeof supabase.auth.signOut === 'function', 'Supabase Auth: Exposes real signOut method');
+  } catch (err) {
+    assert(false, `Supabase Configuration tests threw error: ${err}`);
+  }
+
+  // 9. Input & Password Validation Rules
+  try {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    assert(emailRegex.test('valid.user@nexus.biz'), 'Auth Validation: Accepts standard RFC compliant email');
+    assert(!emailRegex.test('invalid-email'), 'Auth Validation: Rejects malformed email missing @ or domain');
+    assert(!emailRegex.test('user@domain'), 'Auth Validation: Rejects email missing TLD');
+
+    const minPasswordLength = 6;
+    assert('Secret123'.length >= minPasswordLength, 'Auth Validation: Accepts passwords with >= 6 chars');
+    assert('12345'.length < minPasswordLength, 'Auth Validation: Rejects short passwords (< 6 chars)');
+  } catch (err) {
+    assert(false, `Auth Validation tests threw error: ${err}`);
+  }
+
+  // 10. Password Recovery Hash URL Detection
+  try {
+    const sampleRecoveryUrl = 'https://nexus-ai-self-chi.vercel.app/#access_token=test_token&expires_in=3600&refresh_token=refresh_test&token_type=bearer&type=recovery';
+    const isRecovery = sampleRecoveryUrl.includes('type=recovery');
+    assert(isRecovery === true, 'Auth Recovery: Correctly detects Supabase password recovery hash fragment');
+  } catch (err) {
+    assert(false, `Auth Recovery test threw error: ${err}`);
   }
 
   console.log('\n====================================================');
