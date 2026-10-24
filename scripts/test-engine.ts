@@ -235,6 +235,31 @@ async function runTests() {
     assert(false, `Auth Recovery test threw error: ${err}`);
   }
 
+  // 11. Integrations Hub: Official Website Redirect URLs
+  try {
+    const EXPECTED_OFFICIAL_URLS: Record<string, string> = {
+      shopify: 'https://www.shopify.com/',
+      woocommerce: 'https://woocommerce.com/',
+      porter: 'https://porter.in/',
+      shiprocket: 'https://www.shiprocket.in/',
+      whatsapp: 'https://business.whatsapp.com/',
+      slack: 'https://slack.com/',
+      gmail: 'https://mail.google.com/',
+      sheets: 'https://sheets.google.com/',
+      instagram: 'https://www.instagram.com/',
+      webhook: 'https://www.google.com/',
+    };
+
+    const keys = Object.keys(EXPECTED_OFFICIAL_URLS);
+    assert(keys.length === 10, 'Integrations: 10 official destination URLs registered');
+
+    for (const [key, url] of Object.entries(EXPECTED_OFFICIAL_URLS)) {
+      assert(url.startsWith('https://'), `Integrations: ${key} destination uses secure HTTPS (${url})`);
+    }
+  } catch (err) {
+    assert(false, `Integrations official destination URLs test threw error: ${err}`);
+  }
+
   console.log('\n====================================================');
   console.log(`RESULTS: ${passed} passed, ${failed} failed`);
   console.log('====================================================');

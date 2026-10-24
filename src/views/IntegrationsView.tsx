@@ -94,7 +94,22 @@ export const IntegrationsView: React.FC = () => {
     { id: 'communication', label: 'Communication' },
     { id: 'productivity', label: 'Productivity' },
     { id: 'marketing', label: 'Marketing' },
+    { id: 'developer', label: 'Developer & Webhooks' },
   ];
+
+  // Official verified website destinations for each integration
+  const INTEGRATION_OFFICIAL_URLS: Record<string, { url: string; label: string }> = {
+    shopify: { url: 'https://www.shopify.com/', label: 'Visit Shopify' },
+    woocommerce: { url: 'https://woocommerce.com/', label: 'Visit WooCommerce' },
+    porter: { url: 'https://porter.in/', label: 'Visit Porter' },
+    shiprocket: { url: 'https://www.shiprocket.in/', label: 'Visit Shiprocket' },
+    whatsapp: { url: 'https://business.whatsapp.com/', label: 'Visit WhatsApp' },
+    slack: { url: 'https://slack.com/', label: 'Visit Slack' },
+    gmail: { url: 'https://mail.google.com/', label: 'Visit Gmail' },
+    sheets: { url: 'https://sheets.google.com/', label: 'Visit Google Sheets' },
+    instagram: { url: 'https://www.instagram.com/', label: 'Visit Instagram' },
+    webhook: { url: 'https://www.google.com/', label: 'Visit Website' },
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -164,110 +179,98 @@ export const IntegrationsView: React.FC = () => {
 
       {/* Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {filtered.map((item) => (
-          <Card
-            key={item.id}
-            onClick={
-              item.id === 'shopify'
-                ? (e) => {
-                    // If user clicked a button or anchor inside, let the child handler handle it
-                    if ((e.target as HTMLElement).closest('button, a')) return;
-                    window.open('https://www.shopify.com/', '_blank', 'noopener,noreferrer');
-                  }
-                : undefined
-            }
-            className={`p-4 flex flex-col justify-between hover:border-purple-500/40 transition-colors ${
-              item.id === 'shopify' ? 'cursor-pointer hover:bg-purple-950/10' : ''
-            }`}
-          >
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 bg-[#161928] px-2 py-0.5 rounded border border-[#252C42]">
-                  {item.category}
-                </span>
-                <Badge
-                  variant={
-                    item.status === 'demo_connected'
-                      ? 'emerald'
+        {filtered.map((item) => {
+          const official = INTEGRATION_OFFICIAL_URLS[item.id] || {
+            url: 'https://www.google.com/',
+            label: `Visit ${item.name}`,
+          };
+
+          return (
+            <Card
+              key={item.id}
+              onClick={(e) => {
+                // If user clicked a button or anchor inside, let the child handler handle it
+                if ((e.target as HTMLElement).closest('button, a')) return;
+                window.open(official.url, '_blank', 'noopener,noreferrer');
+              }}
+              className="p-4 flex flex-col justify-between hover:border-purple-500/40 transition-colors cursor-pointer hover:bg-purple-950/10"
+            >
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 bg-[#161928] px-2 py-0.5 rounded border border-[#252C42]">
+                    {item.category}
+                  </span>
+                  <Badge
+                    variant={
+                      item.status === 'demo_connected'
+                        ? 'emerald'
+                        : item.status === 'connected'
+                        ? 'cyan'
+                        : 'neutral'
+                    }
+                    size="sm"
+                    dot
+                  >
+                    {item.status === 'demo_connected'
+                      ? 'Demo Connected'
                       : item.status === 'connected'
-                      ? 'cyan'
-                      : 'neutral'
-                  }
-                  size="sm"
-                  dot
-                >
-                  {item.status === 'demo_connected'
-                    ? 'Demo Connected'
-                    : item.status === 'connected'
-                    ? 'Live Connected'
-                    : 'Not Connected'}
-                </Badge>
-              </div>
-
-              <h3 className="text-sm font-bold text-white mt-1">{item.name}</h3>
-              <p className="text-xs text-slate-400 mt-1 leading-relaxed line-clamp-3">
-                {item.description}
-              </p>
-
-              <div className="mt-3 pt-2 border-t border-[#1F2438] space-y-1 text-[11px] text-slate-400">
-                <div className="flex items-center justify-between">
-                  <span>Triggers:</span>
-                  <span className="text-slate-200 font-semibold">{item.supportedTriggers?.length || 0} supported</span>
+                      ? 'Live Connected'
+                      : 'Not Connected'}
+                  </Badge>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span>Actions:</span>
-                  <span className="text-slate-200 font-semibold">{item.supportedActions?.length || 0} supported</span>
+
+                <h3 className="text-sm font-bold text-white mt-1">{item.name}</h3>
+                <p className="text-xs text-slate-400 mt-1 leading-relaxed line-clamp-3">
+                  {item.description}
+                </p>
+
+                <div className="mt-3 pt-2 border-t border-[#1F2438] space-y-1 text-[11px] text-slate-400">
+                  <div className="flex items-center justify-between">
+                    <span>Triggers:</span>
+                    <span className="text-slate-200 font-semibold">{item.supportedTriggers?.length || 0} supported</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Actions:</span>
+                    <span className="text-slate-200 font-semibold">{item.supportedActions?.length || 0} supported</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="mt-4 pt-3 border-t border-[#1F2438] flex items-center justify-between gap-2">
-              <button
-                onClick={() => handleTestConnection(item.id)}
-                disabled={testingId === item.id}
-                className="text-xs text-purple-400 hover:text-purple-300 font-semibold flex items-center gap-1"
-              >
-                {testingId === item.id ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Zap className="w-3.5 h-3.5" />
-                )}
-                <span>Test Ping</span>
-              </button>
-
-              <div className="flex items-center gap-1.5">
+              <div className="mt-4 pt-3 border-t border-[#1F2438] flex items-center justify-between gap-2">
                 <button
-                  onClick={() => setActiveConfigItem(item)}
-                  className="text-xs text-slate-300 hover:text-white px-2.5 py-1 rounded bg-[#181C2C] hover:bg-[#20253B] border border-[#2A314C]"
+                  onClick={() => handleTestConnection(item.id)}
+                  disabled={testingId === item.id}
+                  className="text-xs text-purple-400 hover:text-purple-300 font-semibold flex items-center gap-1"
                 >
-                  Configure
+                  {testingId === item.id ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Zap className="w-3.5 h-3.5" />
+                  )}
+                  <span>Test Ping</span>
                 </button>
-                {item.id === 'shopify' ? (
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setActiveConfigItem(item)}
+                    className="text-xs text-slate-300 hover:text-white px-2.5 py-1 rounded bg-[#181C2C] hover:bg-[#20253B] border border-[#2A314C]"
+                  >
+                    Configure
+                  </button>
                   <a
-                    href="https://www.shopify.com/"
+                    href={official.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded transition-colors bg-purple-600 hover:bg-purple-500 text-white"
+                    className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded transition-colors bg-purple-600 hover:bg-purple-500 text-white"
                   >
                     <ExternalLink className="w-3 h-3" />
-                    Visit Shopify
+                    <span>{official.label}</span>
                   </a>
-                ) : (
-                  <button
-                    onClick={() => handleToggleConnection(item.id)}
-                    className={`text-[10px] font-bold px-2 py-1 rounded transition-colors ${
-                      item.status === 'not_connected'
-                        ? 'bg-purple-600 hover:bg-purple-500 text-white'
-                        : 'bg-[#1D2133] hover:bg-rose-950/40 text-slate-400 hover:text-rose-300'
-                    }`}
-                  >
-                    {item.status === 'not_connected' ? 'Connect' : 'Disconnect'}
-                  </button>
-                )}
+                </div>
               </div>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
       </div>
 
       {/* Configure Modal */}
