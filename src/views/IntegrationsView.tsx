@@ -228,16 +228,28 @@ export const IntegrationsView: React.FC = () => {
                 >
                   Configure
                 </button>
-                <button
-                  onClick={() => handleToggleConnection(item.id)}
-                  className={`text-[10px] font-bold px-2 py-1 rounded transition-colors ${
-                    item.status === 'not_connected'
-                      ? 'bg-purple-600 hover:bg-purple-500 text-white'
-                      : 'bg-[#1D2133] hover:bg-rose-950/40 text-slate-400 hover:text-rose-300'
-                  }`}
-                >
-                  {item.status === 'not_connected' ? 'Connect' : 'Disconnect'}
-                </button>
+                {item.id === 'shopify' ? (
+                  <a
+                    href="https://www.shopify.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded transition-colors bg-purple-600 hover:bg-purple-500 text-white"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    Visit Shopify
+                  </a>
+                ) : (
+                  <button
+                    onClick={() => handleToggleConnection(item.id)}
+                    className={`text-[10px] font-bold px-2 py-1 rounded transition-colors ${
+                      item.status === 'not_connected'
+                        ? 'bg-purple-600 hover:bg-purple-500 text-white'
+                        : 'bg-[#1D2133] hover:bg-rose-950/40 text-slate-400 hover:text-rose-300'
+                    }`}
+                  >
+                    {item.status === 'not_connected' ? 'Connect' : 'Disconnect'}
+                  </button>
+                )}
               </div>
             </div>
           </Card>
