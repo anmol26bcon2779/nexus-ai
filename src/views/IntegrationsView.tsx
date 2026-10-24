@@ -165,7 +165,21 @@ export const IntegrationsView: React.FC = () => {
       {/* Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {filtered.map((item) => (
-          <Card key={item.id} className="p-4 flex flex-col justify-between hover:border-purple-500/40 transition-colors">
+          <Card
+            key={item.id}
+            onClick={
+              item.id === 'shopify'
+                ? (e) => {
+                    // If user clicked a button or anchor inside, let the child handler handle it
+                    if ((e.target as HTMLElement).closest('button, a')) return;
+                    window.open('https://www.shopify.com/', '_blank', 'noopener,noreferrer');
+                  }
+                : undefined
+            }
+            className={`p-4 flex flex-col justify-between hover:border-purple-500/40 transition-colors ${
+              item.id === 'shopify' ? 'cursor-pointer hover:bg-purple-950/10' : ''
+            }`}
+          >
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 bg-[#161928] px-2 py-0.5 rounded border border-[#252C42]">
